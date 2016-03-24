@@ -402,9 +402,11 @@ if [ "${CSV_DELIMITER}" = "" ]; then
         STRING_2=`tail -n +2 "${TWO_FIRST_LINES_FILE}"`
         rm -rf "${TWO_FIRST_LINES_FILE}"
         CSV_DELIMITER=`python "${SCRIPT_DIR}/searchDelimiter.py" "${STRING_1}" "${STRING_2}" "${QUOTE_CHARACTER}"`
+        ## TODO: Add Override param
+        CSV_DELIMITER="|"
         if [ "${CSV_DELIMITER}" = "NO_DELIMITER" ]; then
                 echo "- Error: Delimiter not found !"
-		echo "         Maybe the number of delimiters are differents in the two first lines !"
+		  echo "         Maybe the number of delimiters are differents in the two first lines !"
                 echo "         Or maybe you should check the quote character (-q option) !"
                 exit 1
         fi
@@ -468,13 +470,17 @@ fi
 SCHEMA_FILE=${WORK_DIR}/${CSV_FILENAME}.schema
 
 # The Hive CREATE TABLE file
-HIVE_TABLE_FILE=${WORK_DIR}/${CSV_FILENAME}.hql
+HIVE_TABLE_FILE=${WORK_DIR}/${CSV_FILENAME}_raw.hql
+
+# The Hive CREATE TABLE file
+HIVE_CURRENT_TABLE_FILE=${WORK_DIR}/${CSV_FILENAME}_current.hql
 
 # The parquet CREATE TABLE file
 PARQUET_TABLE_FILE=${WORK_DIR}/${CSV_FILENAME}.parquet
 
 # The vars for building the Hive template
-HIVE_TABLE_MODEL=`sed -e 's/^/\t/' ${SCHEMA_FILE}`
+HIVE_TABLE_MODEL=`sed -e '1d; $d' ${SCHEMA_FILE}`
+HIVE_INSERT_TABLE_MODEL=`sed -e 's/[A-Z]//g' <<< "${HIVE_TABLE_MODEL}"`
 HIVE_TABLE_DELIMITER=${CSV_DELIMITER}
 if [ "${HIVE_TABLE_DELIMITER}" = "\s" ]; then
         HIVE_TABLE_DELIMITER=" "
@@ -487,14 +493,38 @@ HIVE_SEP=""
 if [ ! "${HIVE_DB_NAME}" = "" ]; then
         HIVE_SEP="."
 fi
-HIVE_TEMPLATE="DROP TABLE ${HIVE_DB_NAME}${HIVE_SEP}${HIVE_TABLE_NAME};
-CREATE TABLE ${HIVE_DB_NAME}${HIVE_SEP}${HIVE_TABLE_NAME} (
+
+
+## TODO: Parameterize LOCATION for current and RAW
+
+HIVE_TEMPLATE="DROP TABLE ${HIVE_DB_NAME}${HIVE_SEP}${HIVE_TABLE_NAME}_raw;
+CREATE EXTERNAL TABLE ${HIVE_DB_NAME}${HIVE_SEP}${HIVE_TABLE_NAME}_raw (
 ${HIVE_TABLE_MODEL}
 )
 PARTITIONED BY (yr STRING, mo STRING, dy STRING)
-ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\${HIVE_TABLE_DELIMITER}' ESCAPED BY '\\'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '${HIVE_TABLE_DELIMITER}' ESCAPED BY '\\\\\'
 LOCATION 's3n://ccnawdl/raw/analytic_mart/${HIVE_TABLE_NAME}/'
-tblproperties ('skip.header.line.count'='1');"
+tblproperties ('skip.header.line.count'='1');
+
+
+"
+
+HIVE_CURRENT_TEMPLATE="DROP TABLE ${HIVE_DB_NAME}${HIVE_SEP}${HIVE_TABLE_NAME}_current;
+CREATE EXTERNAL TABLE ${HIVE_DB_NAME}${HIVE_SEP}${HIVE_TABLE_NAME}_current (
+${HIVE_TABLE_MODEL}
+)
+STORED AS ORC
+LOCATION '/datalake/current/analytic_mart/${HIVE_TABLE_NAME}/'
+tblproperties ("orc.compress"="SNAPPY");
+
+INSERT INTO ${HIVE_DB_NAME}${HIVE_SEP}${HIVE_TABLE_NAME}_current SELECT 
+${HIVE_INSERT_TABLE_MODEL}
+FROM ${HIVE_DB_NAME}${HIVE_SEP}${HIVE_TABLE_NAME}_raw;
+
+
+
+"
+
 
 # The Parquet CREATE TABLE template
 PARQUET_SEP=""
@@ -519,10 +549,15 @@ INSERT OVERWRITE TABLE ${PARQUET_DB_NAME}${PARQUET_SEP}${PARQUET_TABLE_NAME} SEL
 rm -f "${WORK_DIR}/${HDFS_BASENAME}"
 ln -s "${CSV_DIR}/${CSV_BASENAME}" "${WORK_DIR}/${HDFS_BASENAME}"
 
-# Generates the Hive CREATE TABLE file
+# Generates the Hive CREATE RAW TABLE file
 rm -f "${HIVE_TABLE_FILE}"
 touch "${HIVE_TABLE_FILE}"
 echo -e "${HIVE_TEMPLATE}" > "${HIVE_TABLE_FILE}"
+
+# Generates the Hive CREATE CURRENT TABLE file
+rm -f "${HIVE_CURRENT_TABLE_FILE}"
+touch "${HIVE_CURRENT_TABLE_FILE}"
+echo -e "${HIVE_CURRENT_TEMPLATE}" > "${HIVE_CURRENT_TABLE_FILE}"
 
 # Generates the Parquet CREATE TABLE file if the Parquet table name exists
 if [ ! "${PARQUET_TABLE_NAME}" = "" ]; then

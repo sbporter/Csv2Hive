@@ -372,7 +372,9 @@ if [ "${CSV_DELIMITER}" = "" ]; then
         STRING_1=`head -1 "${TWO_FIRST_LINES_FILE}"`
         STRING_2=`tail -n +2 "${TWO_FIRST_LINES_FILE}"`
         rm -rf "${TWO_FIRST_LINES_FILE}"
-        CSV_DELIMITER=`python "${SCRIPT_DIR}/searchDelimiter.py" "${STRING_1}" "${STRING_2}" "${QUOTE_CHARACTER}"`
+        # CSV_DELIMITER=`python "${SCRIPT_DIR}/searchDelimiter.py" "${STRING_1}" "${STRING_2}" "${QUOTE_CHARACTER}"`
+        ## TODO: Add Override param
+        CSV_DELIMITER="|"
         if [ "${CSV_DELIMITER}" = "NO_DELIMITER" ]; then
                 echo "$(wc -l ${CSV_FILE})"
                 echo "- Error: Delimiter not found !"
