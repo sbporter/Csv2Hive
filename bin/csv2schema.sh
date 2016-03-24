@@ -374,6 +374,8 @@ if [ "${CSV_DELIMITER}" = "" ]; then
         rm -rf "${TWO_FIRST_LINES_FILE}"
         CSV_DELIMITER=`python "${SCRIPT_DIR}/searchDelimiter.py" "${STRING_1}" "${STRING_2}" "${QUOTE_CHARACTER}"`
         if [ "${CSV_DELIMITER}" = "NO_DELIMITER" ]; then
+        	echo "File ${CSV_FILE}"
+                echo "wc -l ${CSV_FILE}"
                 echo "- Error: Delimiter not found !"
 		echo "         Maybe the number of delimiters are differents in the two first lines !"
 		echo "         Or maybe you should check the quote character (-q option) !"
