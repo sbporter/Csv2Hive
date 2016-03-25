@@ -478,9 +478,18 @@ HIVE_CURRENT_TABLE_FILE=${WORK_DIR}/${CSV_FILENAME}_current.hql
 # The parquet CREATE TABLE file
 PARQUET_TABLE_FILE=${WORK_DIR}/${CSV_FILENAME}.parquet
 
-# The vars for building the Hive template
-HIVE_TABLE_MODEL=`sed -e '1d; $d' ${SCHEMA_FILE}`
-HIVE_INSERT_TABLE_MODEL=`sed -e 's/[A-Z]//g' <<< "${HIVE_TABLE_MODEL}"`
+# The vars for building the Hive template (MAC)
+# HIVE_TABLE_MODEL=`sed -e '1d; $d' ${SCHEMA_FILE}`
+# HIVE_INSERT_TABLE_MODEL=`sed -e 's/[A-Z]//g' <<< "${HIVE_TABLE_MODEL}"`
+
+# The vars for building the Hive template (LINUX)
+HIVE_TABLE_MODEL=`sed -e 's/^/\t/' ${SCHEMA_FILE}`
+HIVE_INSERT_TABLE_MODEL=`sed -e 's/\<bigint\>//g' <<< "${HIVE_TABLE_MODEL}"`
+HIVE_INSERT_TABLE_MODEL=`sed -e 's/\<string\>//g' <<< "${HIVE_INSERT_TABLE_MODEL}"`
+HIVE_INSERT_TABLE_MODEL=`sed -e 's/\<int\>//g' <<< "${HIVE_INSERT_TABLE_MODEL}"`
+HIVE_INSERT_TABLE_MODEL=`sed -e 's/\<varchar\>//g' <<< "${HIVE_INSERT_TABLE_MODEL}"`
+
+
 HIVE_TABLE_DELIMITER=${CSV_DELIMITER}
 if [ "${HIVE_TABLE_DELIMITER}" = "\s" ]; then
         HIVE_TABLE_DELIMITER=" "
